@@ -4,7 +4,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # --- CONFIGURATION ---
-TOKEN = "YOUR_BOT_TOKEN_HERE"
+TOKEN = "7953457415:AAE2sw1kMq6IlteojeEjXHCeivqteAOpm2k"
 LEADER_USERNAME = "@DLmkt_p1_T162"
 MAX_OT_MINUTES = 150  # 2 hours 30 mins
 
