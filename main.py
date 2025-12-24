@@ -10,7 +10,7 @@ MAX_OT_MINUTES = 150
 
 # Dictionaries for tracking
 ot_tracking = {}
-message_cache = {} # Stores {message_id: "message text"}
+message_cache = {} # Stores {message_id: {"text": text, "user": name}}
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
@@ -20,18 +20,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     user = update.message.from_user
     text = update.message.text
+    msg_id = update.message.message_id
     now = datetime.now()
 
-    # --- SAVE TO CACHE (For Delete Tracker) ---
-    # We store the message text in case it gets deleted later
-    message_cache[update.message.message_id] = {
+    # --- SAVE TO CACHE ---
+    # We must store the text NOW, because once it's deleted, we can't get it back
+    message_cache[msg_id] = {
         "text": text,
         "user": user.first_name
     }
-    # Keep cache small (remove old messages if needed)
-    if len(message_cache) > 500:
-        first_key = next(iter(message_cache))
-        message_cache.pop(first_key)
 
     # --- OT LOGIC ---
     lower_text = text.lower()
@@ -60,31 +57,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("❌ You haven't started an OT session yet. Type 'OT Reach'.")
 
-# --- DELETE TRACKER TRIGGER ---
+# --- IMPROVED DELETE TRACKER ---
 async def track_deleted_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # This triggers when the bot detects a message was deleted
+    # This specifically checks for the 'deleted_message' attribute in the update
     if update.deleted_message:
         msg_id = update.deleted_message.message_id
         if msg_id in message_cache:
-            deleted_data = message_cache[msg_id]
-            log_text = (f"🗑️ **Message Deleted**\n"
-                        f"From: {deleted_data['user']}\n"
-                        f"Content: {deleted_data['text']}")
-            await update.effective_chat.send_message(log_text, parse_mode="Markdown")
-            # Remove from cache after reporting
-            message_cache.pop(msg_id)
+            data = message_cache[msg_id]
+            log_text = (f"🗑️ **Deleted Message Detected**\n"
+                        f"👤 **From:** {data['user']}\n"
+                        f"📝 **Content:** {data['text']}")
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=log_text, parse_mode="Markdown")
+            del message_cache[msg_id]
 
 def main():
     app = Application.builder().token(TOKEN).build()
 
-    # Handler for all text messages (OT and Caching)
+    # Main handler for text and caching
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
-    # Handler for deleted messages
-    app.add_handler(MessageHandler(filters.StatusUpdate.DELETE_CHAT_PHOTO, track_deleted_messages))
+    # Correct handler for deleted messages
+    app.add_handler(MessageHandler(filters.UpdateType.DELETED_MESSAGE, track_deleted_messages))
 
-    print("Bot is starting...")
-    app.run_polling()
+    print("Bot is running...")
+    app.run_polling(allowed_updates=Update.ALL_TYPES) # Important: tell Telegram to send all updates
 
 if __name__ == '__main__':
     main()
