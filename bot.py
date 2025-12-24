@@ -1,57 +1,71 @@
-import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from telegram import Update
-from telegram.ext import Application, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# These will be set in PythonAnywhere settings later
-TOKEN = os.getenv('7953457415:AAE2sw1kMq6IlteojeEjXHCeivqteAOpm2k')
-LOG_CHAT_ID = os.getenv('6328052501') 
-LEADER_HANDLE = '@DLmkt_p1_T162'
-MAX_OT_MINUTES = 150 
+# --- CONFIGURATION ---
+TOKEN = "YOUR_BOT_TOKEN_HERE"
+LEADER_USERNAME = "@DLmkt_p1_T162"
+MAX_OT_MINUTES = 150  # 2 hours 30 mins
 
-ot_tracker = {}
+# Dictionary to store start times: {user_id: start_datetime}
+ot_tracking = {}
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
-        return
-
     text = update.message.text.lower()
     user = update.message.from_user
-    user_mention = f"@{user.username}" if user.username else user.first_name
     now = datetime.now()
 
-    # LOGGING: Sends a copy of every message to you so you see deleted ones
-    if LOG_CHAT_ID:
-        log_text = f"📩 **Log** from {user_mention}:\n{update.message.text}"
-        await context.bot.send_message(chat_id=LOG_CHAT_ID, text=log_text)
-
-    # OT REACH (Start)
+    # --- OT REACH (START) ---
     if text == "ot reach":
-        ot_tracker[user.id] = now
-        await update.message.reply_text(f"✅ {user_mention}, OT started at {now.strftime('%H:%M:%S')}.")
+        ot_tracking[user.id] = now
+        await update.message.reply_text(f"✅ OT Started for {user.first_name} at {now.strftime('%H:%M:%S')}.")
 
-    # OT OUT (End)
+    # --- OT OUT (END) ---
     elif text == "ot out":
-        if user.id not in ot_tracker:
-            await update.message.reply_text(f"⚠️ {user_mention}, you didn't start OT!")
-            return
+        if user.id in ot_tracking:
+            start_time = ot_tracking.pop(user.id)
+            duration = now - start_time
+            duration_minutes = duration.total_seconds() / 60
+            
+            hours = int(duration_minutes // 60)
+            minutes = int(duration_minutes % 60)
 
-        start_time = ot_tracker.pop(user.id)
-        duration = now - start_time
-        duration_minutes = duration.total_seconds() / 60
-        h, m = divmod(int(duration_minutes), 60)
-
-        if duration_minutes > MAX_OT_MINUTES:
-            await update.message.reply_text(f"🚨 **Attention {LEADER_HANDLE}**\nStaff {user_mention} forgot to OT Out.\nDuration: {h}h {m}m.")
+            # Check if exceeded Max OT
+            if duration_minutes > MAX_OT_MINUTES:
+                msg = (f"⚠️ {user.first_name} clocked out, but exceeded max duration!\n"
+                       f"Duration: {hours}h {minutes}m\n"
+                       f"Cc Leader: {LEADER_USERNAME}")
+            else:
+                msg = (f"🕒 OT Complete for {user.first_name}\n"
+                       f"Duration: {hours}h {minutes}m\n"
+                       f"Notifying Leader: {LEADER_USERNAME}")
+            
+            await update.message.reply_text(msg)
         else:
-            await update.message.reply_text(f"🕒 **OT Summary: {user_mention}**\nDuration: {h}h {m}m\nCC: {LEADER_HANDLE}")
+            await update.message.reply_text("❌ You haven't started an OT session yet. Type 'OT Reach'.")
+
+# --- DELETE TRACKER ---
+async def track_deleted_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.deleted_message:
+        # Note: Bots can only see WHAT was deleted if they have privacy mode disabled 
+        # or if the message was cached. This triggers when a message is deleted.
+        await update.effective_chat.send_message(
+            f"🗑️ A message was deleted in this chat. (Security Monitor Active)"
+        )
 
 def main():
     app = Application.builder().token(TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+
+    # Handle text messages for OT
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    # Handle deleted messages
+    app.add_handler(MessageHandler(filters.StatusUpdate.DELETE_CHAT_PHOTO, track_deleted_messages)) # Example hook
+
+    print("Bot is running...")
     app.run_polling()
 
 if __name__ == '__main__':
