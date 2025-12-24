@@ -8,7 +8,7 @@ TOKEN = '7953457415:AAE2sw1kMq6IlteojeEjXHCeivqteAOpm2k'
 LEADER_HANDLE = '@DLmkt_p1_T162'
 # Create a private group and get its ID to send deleted/all logs there
 # Or just use your own User ID to get logs in DM
-LOG_CHAT_ID = 'YOUR_PERSONAL_USER_ID_OR_LOG_GROUP_ID' 
+LOG_CHAT_ID = '6328052501' 
 MAX_OT_MINUTES = 150 
 
 ot_tracker = {}
