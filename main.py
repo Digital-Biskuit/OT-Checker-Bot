@@ -59,18 +59,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("❌ You haven't started an OT session yet.")
 
-# --- DELETE MONITOR ---
-async def track_deleted_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.deleted_message:
-        msg_id = update.deleted_message.message_id
-        if msg_id in message_cache:
-            data = message_cache[msg_id]
-            alert = (
-                f"🗑️ **Deleted Message**\n"
-                f"👤 **From:** {data['user']}\n"
-                f"📝 **Content:** {data['text']}"
-            )
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=alert, parse_mode="Markdown")
 
 def main():
     app = Application.builder().token(TOKEN).build()
