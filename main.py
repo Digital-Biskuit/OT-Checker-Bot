@@ -45,7 +45,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             if mins > MAX_OT_MINUTES:
                 # If staff forget to OT out (exceeds 2h 30m)
-                msg = (f"⚠️ {user.first_name} forgot to OT out!\n"
+                msg = (f"⚠️ {user.id} forgot to OT out!\n"
                        f"Max time exceeded. Duration recorded: {hours}h {remaining_mins}m")
             else:
                 msg = (f"🕒 OT Complete for {user.first_name}\n"
