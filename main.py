@@ -1,35 +1,24 @@
 import logging
 import pytz
-import sqlite3
 from datetime import datetime
 from telegram import Update
-from telegram.ext import Application, MessageHandler, filters, ContextTypes, RawUpdateHandler
+from telegram.ext import Application, MessageHandler, filters, ContextTypes
 
 # --- CONFIGURATION ---
 TOKEN = "7953457415:AAE2sw1kMq6IlteojeEjXHCeivqteAOpm2k"
 MAX_OT_MINUTES = 150 
 LOCAL_TZ = pytz.timezone('Asia/Yangon') 
 
+# Memory
+message_cache = {}
+ot_tracking = {}
+
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-
-# --- DATABASE LOGIC ---
-def init_db():
-    conn = sqlite3.connect('bot_data.db')
-    c = conn.cursor()
-    c.execute('CREATE TABLE IF NOT EXISTS messages (msg_id INTEGER PRIMARY KEY, user_name TEXT, content TEXT)')
-    c.execute('CREATE TABLE IF NOT EXISTS ot (user_id INTEGER PRIMARY KEY, start_time TEXT)')
-    conn.commit()
-    conn.close()
-
-def save_message(msg_id, user_name, content):
-    with sqlite3.connect('bot_data.db') as conn:
-        conn.execute("INSERT OR REPLACE INTO messages VALUES (?, ?, ?)", (msg_id, user_name, content))
 
 def get_now():
     return datetime.now(LOCAL_TZ)
 
-# --- OT LOGIC HANDLER ---
-async def handle_ot(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
         
@@ -38,58 +27,57 @@ async def handle_ot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg_id = update.message.message_id
     now = get_now()
 
-    # Save every message for delete detection later
-    save_message(msg_id, user.first_name, text)
+    # 1. CACHE MESSAGE
+    message_cache[msg_id] = {
+        "text": text,
+        "user": user.first_name
+    }
 
+    # 2. OT LOGIC
     lower_text = text.lower()
     if lower_text == "ot reach":
-        with sqlite3.connect('bot_data.db') as conn:
-            conn.execute("INSERT OR REPLACE INTO ot VALUES (?, ?)", (user.id, now.isoformat()))
+        ot_tracking[user.id] = now
         await update.message.reply_text(f"✅ OT Started for {user.first_name} at {now.strftime('%I:%M %p')}.")
-    
-    elif lower_text == "ot out":
-        with sqlite3.connect('bot_data.db') as conn:
-            row = conn.execute("SELECT start_time FROM ot WHERE user_id=?", (user.id,)).fetchone()
-            if row:
-                start_time = datetime.fromisoformat(row[0])
-                duration = now - start_time
-                mins = int(duration.total_seconds() / 60)
-                conn.execute("DELETE FROM ot WHERE user_id=?", (user.id,))
-                
-                msg = f"🕒 OT Complete for {user.first_name}\nDuration: {mins//60}h {mins%60}m"
-                if mins > MAX_OT_MINUTES:
-                    msg = f"⚠️ {user.first_name} exceeded max OT limit!\nDuration: {mins//60}h {mins%60}m"
-                await update.message.reply_text(msg)
-            else:
-                await update.message.reply_text("❌ You haven't started an OT session yet.")
 
-# --- THE FIX FOR DELETE DETECTION ---
-async def raw_update_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    # This catches the low-level Telegram signal for deletions
-    update_dict = update if isinstance(update, dict) else update.to_dict()
-    
-    # Look for 'updateDeleteMessages' or 'delete_messages' in the raw update
-    if "message_ids" in str(update_dict) or update_dict.get("_") == "updateDeleteMessages":
-        msg_ids = update_dict.get("messages", []) or update_dict.get("message_ids", [])
-        
-        for mid in msg_ids:
-            with sqlite3.connect('bot_data.db') as conn:
-                data = conn.execute("SELECT user_name, content FROM messages WHERE msg_id=?", (mid,)).fetchone()
-                if data:
-                    alert = f"🗑️ **Deleted Message Detected**\n👤 **From:** {data[0]}\n📝 **Content:** {data[1]}"
-                    await context.bot.send_message(chat_id=context._chat_id, text=alert, parse_mode="Markdown")
+    elif lower_text == "ot out":
+        if user.id in ot_tracking:
+            start_time = ot_tracking.pop(user.id)
+            duration = now - start_time
+            mins = int(duration.total_seconds() / 60)
+            
+            hours = mins // 60
+            remaining_mins = mins % 60
+
+            if mins > MAX_OT_MINUTES:
+                msg = (f"⚠️ {user.first_name} forgot to OT out!\n"
+                       f"Max time exceeded. Duration recorded: {hours}h {remaining_mins}m")
+            else:
+                msg = (f"🕒 OT Complete for {user.first_name}\n"
+                       f"Duration: {hours}h {remaining_mins}m")
+            
+            await update.message.reply_text(msg)
+        else:
+            await update.message.reply_text("❌ You haven't started an OT session yet.")
+
+# --- DELETE MONITOR ---
+async def track_deleted_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.deleted_message:
+        msg_id = update.deleted_message.message_id
+        if msg_id in message_cache:
+            data = message_cache[msg_id]
+            alert = (
+                f"🗑️ **Deleted Message**\n"
+                f"👤 **From:** {data['user']}\n"
+                f"📝 **Content:** {data['text']}"
+            )
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=alert, parse_mode="Markdown")
 
 def main():
-    init_db()
     app = Application.builder().token(TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.UpdateType.DELETED_MESSAGE, track_deleted_messages))
 
-    # Standard handler for text/OT
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ot))
-    
-    # Raw handler for deletions
-    app.add_handler(RawUpdateHandler(raw_update_handler))
-
-    print("Bot Active. Monitoring for OT and Deletions...")
+    print("Bot started without leader notifications.")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
