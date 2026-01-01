@@ -14,7 +14,7 @@ LOCAL_TZ = pytz.timezone('Asia/Yangon')
 GROUPS = [-1003368401204, -5071975890]
 
 LEADERS = {
-    6328052501: -1003368401204, 6328052501: -5071975890, # You (Leader 1) -> Your Group
+    6328052501: [-1003368401204, -5071975890], # You (Leader 1) -> Your Group
     # Add the second Leader ID here:
     # 123456789: -1002222222222  # Leader 2 -> Topic Group
 }
