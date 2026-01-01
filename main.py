@@ -43,12 +43,14 @@ async def check_targets(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📋 No OT targets have been set for this group/topic yet.")
         return
 
-    text = "📋 **Current OT Targets**\n"
+    # Removed ** bolding to prevent Markdown errors with underscores
+    text = "📋 Current OT Targets\n"
     for username, mins in ot_targets[key].items():
         text += f"👤 @{username}: {mins} mins\n"
     
     text += f"Total: {len(ot_targets[key])} staff listed."
-    await update.message.reply_text(text, parse_mode='Markdown')
+    # Removed parse_mode='Markdown' to stop the bot from crashing
+    await update.message.reply_text(text)
 
 # --- LEADER COMMAND: /set_ot ---
 async def set_ot(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -56,7 +58,6 @@ async def set_ot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     thread_id = update.message.message_thread_id
 
-    # FIXED SECURITY CHECK: Checks if chat is in the leader's list
     allowed_groups = LEADERS.get(user_id, [])
     if chat_id not in allowed_groups:
         await update.message.reply_text("⛔ Access Denied: You are not the leader of this chat.")
@@ -64,7 +65,6 @@ async def set_ot(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         target_username = context.args[0].replace('@', '').lower()
-        # Removes "mins" or any letters from the number
         mins_input = re.sub(r'\D', '', context.args[1])
         target_mins = int(mins_input)
 
@@ -98,6 +98,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ot_tracking[key][user.id] = now
         target = ot_targets.get(key, {}).get(username, "Not Set")
         display_name = user_codes.get(user.id, user.first_name)
+        # Fixed "Not Set" issue by removing Markdown dependency
         await update.message.reply_text(f"✅ OT Started for {display_name}\n🎯 Your Target today: {target} mins")
 
     elif lower_text == "ot out":
@@ -110,11 +111,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             status = "✅ COMPLETED" if mins >= target_mins else "❌ INCOMPLETE"
             
-            msg = (f"🕒 **OT Summary: {display_name}**\n"
+            msg = (f"🕒 OT Summary: {display_name}\n"
                    f"Result: {status}\n"
                    f"Actual: {mins//60}h {mins%60}m\n"
                    f"Required: {target_mins} mins")
-            await update.message.reply_text(msg, parse_mode='Markdown')
+            # Removed parse_mode='Markdown' here as well
+            await update.message.reply_text(msg)
         else:
             await update.message.reply_text("❌ No session found. Type 'OT Reach'.")
 
