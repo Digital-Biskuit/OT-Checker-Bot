@@ -9,11 +9,15 @@ from telegram.ext import Application, MessageHandler, CommandHandler, filters, C
 TOKEN = "7953457415:AAE2sw1kMq6IlteojeEjXHCeivqteAOpm2k"
 LOCAL_TZ = pytz.timezone('Asia/Yangon')
 
-# --- 2 GROUP SETUP ---
-GROUPS = [-1003368401204, -5071975890]
+# --- 3 GROUP SETUP ---
+GROUPS = [-1003368401204, -5071975890, -3435024283]
 
 LEADERS = {
-    6328052501: [-1003368401204, -5071975890], 
+    # Added the 3rd ID here so YOU can manage all of them
+    6328052501: [-1003368401204, -5071975890, -3435024283], 
+    
+    # The other leader still has access to their specific group
+    7310631701: [-3435024283] 
 }
 
 # Nested Storage
