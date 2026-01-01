@@ -38,7 +38,7 @@ async def set_ot(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # FIX: Check if the chat_id is INSIDE the list of IDs for that leader
     if user_id not in LEADERS or chat_id not in LEADERS[user_id]:
-        await update.message.reply_text("⛔ Access Denied: You are not the leader of this chat.")
+        await update.message.reply_text("⛔ Access Denied: You are not the leader.")
         return
 
     try:
@@ -52,7 +52,7 @@ async def set_ot(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if key not in ot_targets: ot_targets[key] = {}
         ot_targets[key][target_username] = target_mins
         
-        await update.message.reply_text(f"🎯 Target for @{target_username} set to {target_mins}m in this topic.")
+        await update.message.reply_text(f"🎯 Target for @{target_username} set to {target_mins}m in this group.")
     except (IndexError, ValueError):
         await update.message.reply_text("⚠️ Usage: `/set_ot @username 60`")
 
@@ -83,7 +83,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target = ot_targets.get(key, {}).get(username, "Not Set")
         display_name = user_codes.get(user.id, user.first_name)
         
-        await update.message.reply_text(f"✅ OT Started for {display_name}\n🎯 Target: {target}m")
+        await update.message.reply_text(f"✅ OT Started for {display_name}\n🎯 Target: {target} mins")
 
     elif lower_text == "ot out":
         if key in ot_tracking and user.id in ot_tracking[key]:
