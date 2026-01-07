@@ -13,25 +13,19 @@ LOCAL_TZ = pytz.timezone('Asia/Yangon')
 GROUPS = [-1003368401204, -5071975890, -1003435024283]
 
 LEADERS = {
-    # You manage all 3 groups
+    # Corrected leader ID list to match your screenshot
     6328052501: [-1003368401204, -5071975890, -1003435024283], 
-    # Other leader manages the 3rd group
     7310631701: [-1003435024283] 
 }
 
 # Storage
 ot_tracking = {}
 ot_targets = {}
-user_codes = {}
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 def get_now():
     return datetime.now(LOCAL_TZ)
-
-def extract_staff_code(text):
-    match = re.search(r'[Tt]\d{3,4}', text)
-    return match.group(0).upper() if match else None
 
 # --- PUBLIC COMMAND: /check_targets ---
 async def check_targets(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -43,13 +37,12 @@ async def check_targets(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📋 No OT targets have been set for this group/topic yet.")
         return
 
-    # Removed ** bolding to prevent Markdown errors with underscores
     text = "📋 Current OT Targets\n"
     for username, mins in ot_targets[key].items():
         text += f"👤 @{username}: {mins} mins\n"
     
     text += f"Total: {len(ot_targets[key])} staff listed."
-    # Removed parse_mode='Markdown' to stop the bot from crashing
+    # No parse_mode to avoid crashing on usernames with underscores
     await update.message.reply_text(text)
 
 # --- LEADER COMMAND: /set_ot ---
@@ -88,18 +81,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now = get_now()
     key = (chat_id, thread_id)
 
-    found_code = extract_staff_code(text)
-    if found_code:
-        user_codes[user.id] = found_code
-
     lower_text = text.lower()
     if lower_text == "ot reach":
         if key not in ot_tracking: ot_tracking[key] = {}
         ot_tracking[key][user.id] = now
         target = ot_targets.get(key, {}).get(username, "Not Set")
-        display_name = user_codes.get(user.id, user.first_name)
-        # Fixed "Not Set" issue by removing Markdown dependency
-        await update.message.reply_text(f"✅ OT Started for {display_name}\n🎯 Your Target today: {target} mins")
+        # FIXED: Using username directly to prevent "Wrong Staff Code" errors
+        await update.message.reply_text(f"✅ OT Started for @{username}\n🎯 Your Target today: {target} mins")
 
     elif lower_text == "ot out":
         if key in ot_tracking and user.id in ot_tracking[key]:
@@ -107,15 +95,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             duration = now - start_time
             mins = int(duration.total_seconds() / 60)
             target_mins = ot_targets.get(key, {}).get(username, 0)
-            display_name = user_codes.get(user.id, user.first_name)
             
             status = "✅ COMPLETED" if mins >= target_mins else "❌ INCOMPLETE"
             
-            msg = (f"🕒 OT Summary: {display_name}\n"
+            # FIXED: Using username in summary
+            msg = (f"🕒 OT Summary: @{username}\n"
                    f"Result: {status}\n"
                    f"Actual: {mins//60}h {mins%60}m\n"
                    f"Required: {target_mins} mins")
-            # Removed parse_mode='Markdown' here as well
             await update.message.reply_text(msg)
         else:
             await update.message.reply_text("❌ No session found. Type 'OT Reach'.")
